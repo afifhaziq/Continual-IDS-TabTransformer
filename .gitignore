@@ -1,9 +1,16 @@
-.ipynb
-.ipynb_checkpoints 
-__pycache__/ 
-preprocess_csv/ 
-.venv 
+# Jupyter
+*.ipynb
+*.ipynb_checkpoints
+
+# Python cache
+__pycache__/
+
+# Virtual environment
+.venv/
+
+# Data and models
 dataset/
-.npy
+preprocess_csv/
 model/
-dataset/
+*.npy
+*.pth
