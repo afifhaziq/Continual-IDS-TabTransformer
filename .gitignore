@@ -1,0 +1,9 @@
+.ipynb
+.ipynb_checkpoints 
+__pycache__/ 
+preprocess_csv/ 
+.venv 
+dataset/
+.npy
+model/
+dataset/

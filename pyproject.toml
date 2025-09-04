@@ -1,0 +1,22 @@
+[project]
+name = "continual"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = "==3.12.4"
+dependencies = [
+    "torch",
+    "tqdm",
+    "numpy",
+    "scikit-learn",
+    "tab-transformer-pytorch>=0.4.2",
+    "pandas>=2.3.2",
+    "pyyaml>=6.0.2",
+    "torchsummary>=1.5.1",
+    "torchinfo>=1.8.0",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.30.1",
+]

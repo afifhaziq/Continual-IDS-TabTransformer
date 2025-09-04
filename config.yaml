@@ -1,0 +1,59 @@
+# --- Base Settings ---
+batch_size: 256
+epochs: 10
+learning_rate: 0.0001
+
+datasets:
+    CICIDS2017:
+        num_class: 8
+        classes:
+            - 'Benign'
+            - 'DoS GoldenEye'
+            - 'DoS Hulk'
+            - 'DoS Slowhttptest'
+            - 'DoS slowloris'
+            - 'FTP-Patator'
+            - 'Heartbleed'
+            - 'SSH-Patator'
+        Task_A:
+            num_class: 3
+            classes:
+                - 'Benign'
+                - 'FTP-Patator'
+                - 'SSH-Patator'
+        Task_B:
+            num_class: 6
+            classes:
+                - 'Benign'
+                - 'DoS GoldenEye'
+                - 'DoS Hulk'
+                - 'DoS Slowhttptest'
+                - 'DoS slowloris'
+                - 'Heartbleed'
+        Task_C:
+            num_class: 4
+            classes:
+                - 'Benign'
+                - 'Web Attack Brute Force'
+                - 'Web Attack Sql Injection'
+                - 'Web Attack XSS'
+            
+                    
+    NBIOT:
+        num_class: 11
+        classes:
+            [
+            "bashcombo",
+            "bashjunk",
+            "bashscan",
+            "bashtcp",
+            "bashudp",
+            "benign",
+            "miraiack",
+            "miraiscan",
+            "miraisyn",
+            "miraiudp",
+            "miraiudpplain"
+            ]
+
+      
