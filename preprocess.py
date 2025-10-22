@@ -4,6 +4,22 @@ from torch.utils.data import DataLoader, Dataset
 import numpy as np
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 import sys
+from torch.utils.data import Dataset
+import numpy as np
+from collections import Counter, defaultdict
+from sklearn.model_selection import StratifiedShuffleSplit
+import random
+
+class AvalancheTabularDataset(Dataset):
+    def __init__(self, base_dataset):
+        self.base = base_dataset
+
+    def __len__(self):
+        return len(self.base)
+
+    def __getitem__(self, idx):
+        x_categ, x_cont, label = self.base[idx]
+        return (x_categ, x_cont), label
 
 class TabularDataset(Dataset):
     def __init__(self, data, categorical_indices_file, task_classes, all_classes, fit=True, scaler=None, max_features=None):
@@ -16,16 +32,18 @@ class TabularDataset(Dataset):
         """
         self.features = data[:, :-1]
         self.labels = data[:, -1]
+        #print("This is tabular object")
+        #if remap:
+            #self.targets = self.labels.copy()
+            # Build mapping from task-specific indices -> global indices
+            #self.label_mapping = {i: all_classes.index(c) for i, c in enumerate(task_classes)}
 
-        # Build mapping from task-specific indices -> global indices
-        self.label_mapping = {i: all_classes.index(c) for i, c in enumerate(task_classes)}
-
-        # Remap labels to global indices
-        self.labels = np.array([self.label_mapping[int(l)] for l in self.labels], dtype=np.int64)
+            # Remap labels to global indices
+            #self.targets = np.array([self.label_mapping[int(l)] for l in self.labels], dtype=np.int64)
         
         # Load categorical indices
         self.categorical_indices = np.load(categorical_indices_file).tolist()
-        
+        #print(self.categorical_indices)
         # Continuous indices = all except categorical
         self.cont_indices = [i for i in range(self.features.shape[1]) if i not in self.categorical_indices]
 
@@ -39,6 +57,7 @@ class TabularDataset(Dataset):
 
         # Calculate vocab sizes for categorical columns
         self.vocab_sizes = self._calculate_vocab_sizes()
+        #print(self.vocab_sizes)
 
     def __len__(self):
         return len(self.labels)
@@ -50,7 +69,7 @@ class TabularDataset(Dataset):
         x_categ = torch.tensor(all_features[self.categorical_indices], dtype=torch.long)
         x_cont = torch.tensor(all_features[self.cont_indices], dtype=torch.float32)
         label = torch.tensor(label, dtype=torch.long)
-        return x_categ, x_cont, label
+        return (x_categ, x_cont), label
 
     def _normalize_continuous(self, fit=True):
         if len(self.cont_indices) == 0:
@@ -68,12 +87,13 @@ class TabularDataset(Dataset):
     def _calculate_vocab_sizes(self):
         vocab_list = []
         for idx in self.categorical_indices:
-            if idx == 0:
-                vocab_size = 65536
-            else:
-                col_data = self.features[:, idx]
-                vocab_size = int(len(np.unique(col_data)))
+            #if idx == 0:
+                #vocab_size = 65536
+            #else:
+            col_data = self.features[:, idx]
+            vocab_size = int(len(np.unique(col_data)))
             vocab_list.append(vocab_size)
+            #print(vocab_list)
         return vocab_list
 
     def pad_features(self, max_features):
@@ -147,6 +167,73 @@ class TabularDataset(Dataset):
                 print("✅ Ports within [0, 65535]")
 
         print("\n✅ Verification complete.\n")
+
+
+
+class SklearnStratifiedPerExpSplit:
+    """
+    Stratified split inside EACH TRAIN experience using scikit-learn.
+    - Uses StratifiedShuffleSplit when every class has >= 2 samples.
+    - Falls back to a per-class split (still stratified in spirit) for tiny classes.
+    """
+    def __init__(self, val_size=0.1, seed=0, min_per_class=1):
+        assert 0.0 < val_size < 1.0, "val_size must be in (0,1)"
+        self.val_size = val_size
+        self.seed = seed
+        self.min_per_class = max(0, int(min_per_class))
+        self.rng = random.Random(seed)
+
+    def _get_labels(self, ds):
+        # Try common attribute first; fallback to indexing
+        try:
+            return np.array(list(ds.labels), dtype=int)
+        except Exception:
+            return np.array([int(ds[i][1]) for i in range(len(ds))], dtype=int)
+
+    def __call__(self, exp):
+        ds = exp.dataset
+        n = len(ds)
+        idxs = np.arange(n)
+        y = self._get_labels(ds)
+
+        counts = Counter(y)
+        all_ge2 = all(c >= 2 for c in counts.values())
+
+        # --- Primary path: sklearn StratifiedShuffleSplit ---
+        if all_ge2:
+            sss = StratifiedShuffleSplit(
+                n_splits=1, test_size=self.val_size, random_state=self.seed
+            )
+            train_idx, val_idx = next(sss.split(idxs, y))
+            return ds.subset(train_idx.tolist()), ds.subset(val_idx.tolist())
+
+        # --- Fallback: per-class guarded split (handles tiny classes) ---
+        by_cls = defaultdict(list)
+        for i, cls in enumerate(y):
+            by_cls[int(cls)].append(i)
+
+        train_idx, val_idx = [], []
+        for cls, cidxs in by_cls.items():
+            self.rng.shuffle(cidxs)
+            c = len(cidxs)
+
+            # desired per-class val count
+            k = int(round(c * self.val_size))
+
+            # ensure at least min_per_class in val when possible,
+            # but never move an entire class to val
+            if c >= self.min_per_class + 1:
+                k = max(k, self.min_per_class)
+            if c > 1:
+                k = min(k, c - 1)
+            else:
+                k = 0  # can't split a singleton class
+
+            val_idx.extend(cidxs[:k])
+            train_idx.extend(cidxs[k:])
+
+        return ds.subset(train_idx), ds.subset(val_idx)
+
 
     
 

@@ -14,3 +14,12 @@ preprocess_csv/
 model/
 *.npy
 *.pth
+
+# Unused files
+./.~forgetoriginal.py
+continual.py
+forget.py
+forgetv1.py
+main.py
+preprocessnb.ipynb
+test.np

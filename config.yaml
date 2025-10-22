@@ -1,6 +1,6 @@
 # --- Base Settings ---
 batch_size: 256
-epochs: 10
+epochs: 100
 learning_rate: 0.0001
 
 datasets:
@@ -38,7 +38,20 @@ datasets:
                 - 'Web Attack Sql Injection'
                 - 'Web Attack XSS'
             
-                    
+    UNSWNB15:
+        num_class: 10
+        classes:
+            - 'Benign'
+            - 'Analysis'
+            - 'Backdoor'
+            - 'DoS'
+            - 'Exploits'
+            - 'Fuzzers'
+            - 'Generic'
+            - 'Reconnaissance'
+            - 'Shellcode'
+            - 'Worms'
+          
     NBIOT:
         num_class: 11
         classes:

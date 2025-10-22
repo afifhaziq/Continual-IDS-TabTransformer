@@ -5,7 +5,6 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = "==3.12.4"
 dependencies = [
-    "torch",
     "tqdm",
     "numpy",
     "scikit-learn",
@@ -14,6 +13,12 @@ dependencies = [
     "pyyaml>=6.0.2",
     "torchsummary>=1.5.1",
     "torchinfo>=1.8.0",
+    "wandb>=0.21.3",
+    "plotly>=6.3.0",
+    "avalanche-lib>=0.6.0",
+    "torch>=2.6.0",
+    "torchvision>=0.21.0",
+    "torchaudio>=2.6.0",
 ]
 
 [dependency-groups]
