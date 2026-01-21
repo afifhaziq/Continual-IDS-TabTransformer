@@ -1,0 +1,5 @@
+# This file ensures the preprocess_csv directory is tracked by Git
+# Place your dataset CSV files in subdirectories:
+# - CICIDS2017/
+# - UNSW/
+# etc.

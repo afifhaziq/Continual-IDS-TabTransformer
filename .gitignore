@@ -11,11 +11,14 @@ __pycache__/
 
 # Data and models
 dataset/
-preprocess_csv/
 model/
-*.npy
 *.pth
 wandb/
+
+# Preprocessing data files (but keep directory structure)
+preprocess_csv/**/*.csv
+preprocess_csv/**/*.npy
+preprocess_csv/**/*.ipynb
 
 # Results and outputs
 results/

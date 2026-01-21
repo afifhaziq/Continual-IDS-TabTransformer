@@ -1,0 +1,2 @@
+# Place your CICIDS2017_standardised.csv file in this directory
+# The tab-preprocessing.py script will read from here and save processed .npy files
