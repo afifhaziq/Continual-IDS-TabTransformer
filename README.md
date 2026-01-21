@@ -1,0 +1,481 @@
+# Continual Learning for Intrusion Detection Systems (IDS)
+
+A PyTorch implementation of continual learning strategies for Network Intrusion Detection Systems (NIDS). This repository implements **Experience Replay (ER)** with **dynamic head expansion** to address catastrophic forgetting in sequential learning scenarios.
+
+[![Python 3.12.4](https://img.shields.io/badge/python-3.12.4-blue.svg)](https://www.python.org/downloads/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.6.0+-ee4c2c.svg)](https://pytorch.org/)
+[![uv](https://img.shields.io/badge/uv-package%20manager-blue)](https://github.com/astral-sh/uv)
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Continual Learning Strategies](#continual-learning-strategies)
+  - [Naive (Baseline)](#1-naive-baseline)
+  - [Experience Replay (ER)](#2-experience-replay-er)
+  - [Dynamic Head Expansion](#3-dynamic-head-expansion)
+- [Scenarios](#scenarios)
+  - [Scenario 1: Class Incremental (CI)](#scenario-1-class-incremental-ci)
+  - [Scenario 2: Class-Instance Incremental (CII)](#scenario-2-class-instance-incremental-cii)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Dataset Preparation](#dataset-preparation)
+- [Configuration](#configuration)
+  - [Training Configuration](#training-configuration)
+  - [Model Configuration](#model-configuration)
+- [Usage](#usage)
+  - [Basic Commands](#basic-commands)
+  - [Command-Line Arguments](#command-line-arguments)
+- [Evaluation Metrics](#evaluation-metrics)
+- [Project Structure](#project-structure)
+- [Weights & Biases Logging](#weights--biases-logging)
+- [License](#license)
+- [Contact](#contact)
+
+## Overview
+
+This repository addresses the challenge of **catastrophic forgetting** in intrusion detection systems when models learn from sequential data streams. The implementation uses a **TabTransformer** architecture combined with continual learning strategies to maintain performance on previously learned attack classes while adapting to new threats.
+
+## Project Structure
+
+```
+Continual-IDS-TabTransformer/
+├── main.py                      # Main training pipeline and experience loop
+├── src/                         # Source code modules
+│   ├── __init__.py
+│   ├── data/                    # Data processing modules
+│   │   ├── __init__.py
+│   │   ├── preprocess.py        # Dataset preprocessing and data loaders
+│   │   └── ci_builder.py        # Continual learning scenario builder
+│   ├── training/                # Training modules
+│   │   ├── __init__.py
+│   │   └── train.py             # Training, evaluation, and testing functions
+│   └── strategies/              # Continual learning strategies
+│       ├── __init__.py
+│       ├── replay.py            # Experience Replay buffer management
+│       └── attack.py            # Poisoning attack implementations 
+├── configs/                     # Configuration files
+│   ├── config.yaml              # Training configuration and dataset specs
+│   └── sweep.yaml               # Weights & Biases sweep configuration
+├── pyproject.toml               # Project dependencies (uv package manager)
+├── uv.lock                      # Locked dependency versions
+├── .gitignore                   # Git ignore rules
+└── README.md                    # This file
+```
+
+### Key Contributions
+
+- **Experience Replay (ER)**: Memory buffer strategy to retain past knowledge
+- **Dynamic Head Expansion**: Incremental output layer growth for new classes
+- **Two Realistic Scenarios**: Class Incremental (CI) and Class-Instance Incremental (CII) learning
+- **Comprehensive Evaluation**: Single-experience and overall performance metrics including Accuracy, F1-score, BWT, FWT, and Intransigence
+
+## Features
+
+- **Experience Replay** with configurable memory budget (5%, 10%, 20%)
+- **Two continual learning scenarios**: Class Incremental (CI) and Class-Instance Incremental (CII)
+- **TabTransformer** architecture for tabular network traffic data
+- **Dynamic head expansion** for incremental class learning
+- **Comprehensive metrics**: Accuracy, F1-score, Backward Transfer (BWT), Forward Transfer (FWT), Intransigence
+- **Reproducible experiments** with seed control
+- **Weights & Biases integration** for experiment tracking and visualization
+- **Balanced/Percentage-based sampling** for replay buffer
+- **Oracle training mode** for upper-bound performance analysis
+
+## Continual Learning Strategies
+
+### 1. Naive (Baseline)
+
+**No replay, sequential fine-tuning**
+
+The naive strategy trains the model sequentially on each experience without any memory mechanism. This serves as a baseline to measure catastrophic forgetting. Default scenario: 1.
+
+**Usage:**
+```bash
+uv run main.py
+```
+
+### 2. Experience Replay (ER)
+
+**Memory-based continual learning**
+
+Experience Replay maintains a buffer of past samples and replays them during training on new experiences. We implement the buffer in training and validation set for consistent observation in loss.
+
+**Characteristics:**
+- Maintains replay buffer with configurable memory budget
+- Samples stored per-class from all seen experiences
+- Buffer rebuilt after each experience
+- Two sampling modes. Default --balanced False:
+  - **Percentage-based**: Keep N% of samples from each class.
+  - **Balanced**: Equal samples per class based on the N% of training set. 
+
+**Memory Budget:**
+The `--mem` parameter controls buffer size as a percentage of total samples seen:
+- `--mem 5`: Keep 5% of samples from each class
+- `--mem 10`: Keep 10% of samples from each class
+- `--mem 20`: Keep 20% of samples from each class
+
+`Note: --mem needs --er flag to be enabled for code to work.`
+
+**Usage:**
+```bash
+# Percentage-based sampling (10% memory)
+uv run main.py --er --mem 10 --scenario 2
+
+# Balanced sampling (equal samples per class)
+uv run main.py --er --mem 10 --scenario 2 --balanced True
+```
+
+### 3. Dynamic Head Expansion
+
+**Incremental classifier adaptation**
+
+The model dynamically expands its output layer as new classes arrive, allowing incremental learning without architectural constraints.
+
+**How it works:**
+1. Model starts with initial output dimension for first experience classes
+2. When new classes arrive, the final linear layer is expanded
+3. New output neurons are randomly initialized
+4. Previous neurons retain their learned weights
+5. All parameters (including old outputs) are fine-tuned
+
+**Implementation:**
+```python
+def adjust_model(model, num_class_new_total, device):
+    """
+    Expands the model's classifier head to support more classes.
+    """
+    old_head = model.mlp.mlp[-1]
+    in_features = old_head.in_features
+    num_class_old = old_head.out_features
+    
+    if num_class_new_total <= num_class_old:
+        return model  # No expansion needed
+    
+    # Create new head with expanded output
+    new_head = nn.Linear(in_features, num_class_new_total, bias=True)
+    model.mlp.mlp[-1] = new_head.to(device)
+    return model
+```
+
+This approach is automatically applied in both naive and ER strategies whenever new classes are encountered.
+
+## Scenarios
+
+### Scenario 1: Class Incremental (CI)
+
+**Benign class appears only in the first experience**
+
+Simulates a scenario where normal traffic is initially observed, followed by sequential attack classes.
+
+**Experience Distribution (CICIDS2017):**
+- **Exp 0:** Classes [0, 1] - Benign + DoS GoldenEye
+- **Exp 1:** Classes [2, 3] - DoS Hulk + DoS Slowhttptest
+- **Exp 2:** Classes [4, 5] - DoS slowloris + FTP-Patator
+- **Exp 3:** Classes [6, 7] - Heartbleed + SSH-Patator
+
+**Usage:**
+```bash
+uv run main.py --scenario 1
+```
+
+### Scenario 2: Class-Instance Incremental (CII)
+
+**Benign class split across all experiences**
+
+Realistic IDS scenario where benign traffic appears continuously alongside new attack types.
+
+**Experience Distribution (CICIDS2017):**
+- **Exp 0:** Classes [0, 1] - Benign + DoS GoldenEye
+- **Exp 1:** Classes [0, 2, 3] - Benign + DoS Hulk + DoS Slowhttptest
+- **Exp 2:** Classes [0, 4, 5] - Benign + DoS slowloris + FTP-Patator
+- **Exp 3:** Classes [0, 6, 7] - Benign + Heartbleed + SSH-Patator
+
+**Usage:**
+```bash
+uv run main.py --scenario 2
+```
+
+## Requirements
+
+- Python 3.12.4
+- CUDA-capable GPU (recommended but optional)
+- [uv](https://github.com/astral-sh/uv) package manager
+
+### Core Dependencies
+
+```toml
+torch >= 2.6.0
+tab-transformer-pytorch >= 0.4.2
+numpy
+scikit-learn
+pandas >= 2.3.2
+pyyaml >= 6.0.2
+wandb >= 0.21.3
+avalanche-lib >= 0.6.0
+tqdm
+```
+
+See `pyproject.toml` for complete dependency list.
+
+## Installation
+
+### 1. Install uv (if not already installed)
+
+```bash
+# On macOS and Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# On Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+### 2. Clone the repository
+
+```bash
+git clone Continual-IDS-TabTransformer
+cd Continual-IDS-TabTransformer
+```
+
+### 3. Install dependencies using uv
+
+```bash
+uv sync
+```
+
+This will automatically create a virtual environment in `.venv` folder and install all required dependencies based on `pyproject.toml`.
+
+## Dataset Preparation
+
+### Required Files
+
+Your dataset directory should contain pre-processed and split data:
+
+```
+dataset/
+└── CICIDS2017/
+    ├── train.npy              # Training data (Shape: samples, features+1)
+    ├── val.npy                # Validation data (Shape: samples, features+1)
+    ├── test.npy               # Test data (Shape: samples, features+1)
+    └── catfeaturelist.npy     # Indices of categorical features. This is required due to the TabTransformer architecture.
+```
+
+### Data Format
+
+- **Input format**: NumPy arrays of shape `(num_samples, num_features + 1)`
+- **Last column**: Encoded class labels (integers starting from 0)
+- **Label encoding**: 
+  - **Class 0 = "Benign"** (must always be index 0)
+  - Classes 1-N = Attack classes (in order defined in config.yaml)
+- **Feature types**: 
+  - Categorical features: Raw tabular data. You only need to find the index of the features and create a list named `catfeaturelist.npy` in `dataset/CICIDS2017/`
+  - Continuous features: Raw tabular data.
+
+### Preprocessing Pipeline
+
+The dataset is processed using `preprocess.py`:
+
+1. **Feature Separation**: Categorical and continuous features are separated based on `catfeaturelist.npy`
+2. **Normalization**: Continuous features are normalized using `StandardScaler`
+   - Training set: Fit and transform
+   - Val/Test sets: Transform only (using training scaler)
+3. **Vocabulary Calculation**: For categorical features, vocabulary sizes are computed
+4. **Stratified Splitting**: Train/validation splits are stratified per-class
+
+
+### Supported Datasets 
+[![UNB: CIC-IDS2017](https://img.shields.io/badge/UNB-CIC--IDS2017-red)](https://www.unb.ca/cic/datasets/ids-2017.html)
+
+Currently configured for flow-based dataset such as:
+- **CICIDS2017** (8 classes: 1 Benign + 7 Attack types) 
+
+**Class mapping (config.yaml):**
+```yaml
+classes:
+    - 'Benign'           # 0
+    - 'DoS GoldenEye'    # 1
+    - 'DoS Hulk'         # 2
+    - 'DoS Slowhttptest' # 3
+    - 'DoS slowloris'    # 4
+    - 'FTP-Patator'      # 5
+    - 'Heartbleed'       # 6
+    - 'SSH-Patator'      # 7
+```
+
+To add new datasets, update `config.yaml` with class names and prepare data in the required format.
+
+## Configuration
+
+All configuration parameters are defined in `configs/config.yaml`. Edit this file to customize your experiments.
+
+### Training Configuration
+
+```yaml
+# Training hyperparameters. This is just an example. Tune accordingly.
+batch_size: 256          # Batch size for training
+epochs: 100              # Maximum epochs per experience
+learning_rate: 0.001     # Initial learning rate (AdamW)
+
+# Dataset configuration
+datasets:
+    CICIDS2017:
+        num_class: 8
+        classes:
+            - 'Benign'
+            - 'DoS GoldenEye'
+            - 'DoS Hulk'
+            - 'DoS Slowhttptest'
+            - 'DoS slowloris'
+            - 'FTP-Patator'
+            - 'Heartbleed'
+            - 'SSH-Patator'
+```
+
+**Training Details:**
+- **Optimizer**: AdamW with weight decay 1e-2
+- **Scheduler**: CosineAnnealingLR (T_max = num_epochs, eta_min = 1e-6)
+- **Early Stopping**: Patience = 10 epochs (based on validation loss)
+- **Loss Function**: CrossEntropyLoss
+
+### Model Configuration
+
+[![GitHub Repo](https://img.shields.io/badge/GitHub-lucidrains%2Ftab--transformer--pytorch-blue?logo=github)](https://github.com/lucidrains/tab-transformer-pytorch)
+
+We utilize the TabTransformer implementation from the above repository. Model hyperparameters are configured in `configs/config.yaml`:
+
+```yaml
+model:
+    dim: 32              # Embedding dimension
+    depth: 6             # Number of transformer layers
+    heads: 10            # Number of attention heads
+    attn_dropout: 0.1    # Attention dropout rate
+    ff_dropout: 0.1      # Feed-forward dropout rate
+    dim_out: 2           # Initial output classes (auto-expanded)
+```
+
+## Usage
+
+### Basic Commands
+
+#### 0. Log in to Weights & Biases
+
+Get your api key from your wandb account. Refer to this link: https://wandb.ai/authorize
+```bash
+wandb login
+
+# Insert the api key from your wandb account
+```
+
+#### 1. Naive (No Replay) - Baseline with CIIL Scenario
+
+```bash
+uv run main.py --scenario 2
+```
+
+
+#### 2. Experience Replay - Main Strategy with CIIL Scenario
+
+```bash
+# Basic ER with 10% memory
+uv run main.py --er --mem 10 --scenario 2
+
+# ER with different memory budgets
+uv run main.py --er --mem 5 --scenario 2   # 5% memory
+
+# Balanced sampling (equal samples per class)
+uv run main.py --er --mem 10 --scenario 2 --balanced True
+```
+
+#### 3. Oracle Training - Upper Bound
+
+```bash
+uv run main.py --er --mem 10 --scenario 2 --oracle --seed 42
+```
+
+**Oracle training:**
+- For each experience j, train a new model on concatenated data from experiences 0..j
+- Provides upper-bound performance (joint training). Act as baseline without any CL method.
+- Used to compute **intransigence** metric
+
+### Command-Line Arguments
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `--er` | flag | False | Enable Experience Replay strategy |
+| `--mem` | int | 10 | Memory percentage (e.g., 10 for 10%). --er must be enabled. |
+| `--scenario` | int | 1 | Scenario type: 1=CI, 2=CIIL |
+| `--balanced` | str | 'False' | Balanced sampling ('True'/'False') |
+| `--seed` | int | 42 | Random seed for reproducibility |
+| `--learning_rate` | float | from config | Override learning rate |
+| `--oracle` | flag | False | Compute oracle performance |
+
+## Evaluation Metrics
+
+The following metrics are computed to evaluate continual learning performance:
+
+### Per-Experience Metrics
+- **Accuracy**: Overall classification accuracy on test set
+- **Macro F1-Score**: Macro-averaged F1-score across all classes
+- **Forgetting**: Performance degradation on previous experiences
+- **Forward Transfer (FWT)**: Zero-shot performance on new classes before training
+- **Backward Transfer (BWT)**: Average change in performance on previous tasks
+- **Intransigence**: Gap between continual learning and oracle (upper-bound) performance
+
+### Overall Metrics
+Computed after all experiences:
+- **Overall Accuracy**: Average accuracy across all experiences
+- **Overall Macro F1**: Average F1-score across all experiences
+- **Overall BWT**: Average backward transfer across all previous tasks
+- **Overall FWT**: Average forward transfer across all new tasks
+- **Overall Intransigence**: Average gap from oracle performance
+
+All metrics are automatically logged to **Weights & Biases** for visualization and comparison.
+
+
+## Weights & Biases Logging
+
+All experiments are automatically logged to Weights & Biases for tracking and visualization. Metrics are organized in the following hierarchy:
+
+### Training Metrics (Per Experience)
+```
+Training/
+  ├── exp_{id}/train_loss    # Training loss per epoch
+  ├── exp_{id}/val_loss      # Validation loss per epoch
+  └── exp_{id}/lr            # Learning rate schedule
+```
+
+### Experience-Level Metrics
+```
+exp/
+  ├── {id}/acc                     # Test accuracy
+  ├── {id}/macro_f1                # Macro F1-score
+  ├── {id}/forgetting_acc          # Forgetting on previous tasks
+  ├── {id}/forgetting_macro_f1     # F1 forgetting
+  ├── {id}/bwt_avg_so_far_acc      # Backward transfer (average so far)
+  ├── {id}/fwt_zero_shot_acc       # Forward transfer (zero-shot)
+  └── {id}/intransigence_acc       # Intransigence (if oracle enabled)
+```
+
+### Overall Metrics (After All Experiences)
+```
+overall/
+  ├── acc                      # Overall accuracy
+  ├── macro_f1                 # Overall macro F1-score
+  ├── bwt_acc                  # Overall backward transfer
+  ├── fwt_acc                  # Overall forward transfer
+  ├── intransigence_acc        # Overall intransigence (if oracle enabled)
+  └── {id}/conf_mat            # Confusion matrix per experience
+```
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+
+## Contact
+
+For questions or issues, please open an issue on GitHub.
+
+---
+
+

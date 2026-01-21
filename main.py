@@ -1,19 +1,23 @@
 
-import yaml, numpy as np, torch, math, pandas as pd
-from ci_builder import build_class_incremental_scenario
-from tab_transformer_pytorch import TabTransformer 
-from train import test_and_report, train_model
-from preprocess import TabularDataset
-from replay import build_replay_buffer, print_buffer_distribution, ReplayDataset
+import yaml
+import numpy as np
+import torch
+import pandas as pd
 import torch.nn as nn
-import torch.optim 
+import torch.optim
 import wandb
-from torch.utils.data import DataLoader, Dataset
-from tqdm import tqdm
 import sys
 import argparse
 import random
-import os
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+from tab_transformer_pytorch import TabTransformer
+
+# Local imports
+from src.data.ci_builder import build_class_incremental_scenario
+from src.training.train import test_and_report, train_model
+from src.strategies.replay import build_replay_buffer, print_buffer_distribution, ReplayDataset
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -21,14 +25,16 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 parser = argparse.ArgumentParser(description='Continual learning strategies')
 parser.add_argument('--er', action='store_true', help='Enable Experience Replay strategy')
 parser.add_argument('--mem', type=int, default=10, help='Memory percentage for Experience Replay (e.g., 10 for 10%)')
-parser.add_argument('--scenario', type=int, choices=[1, 2], default=1, 
-                   help='Scenario type: 1=benign_first (benign only in first exp), 2=split_benign (benign split across all exps)')
+parser.add_argument('--scenario', type=int, choices=[1, 2], default=1, help='Scenario type: 1 = Class Incremental (benign only in first exp), 2 = Class-Instance Incremental (benign split across all exps)')
+parser.add_argument('--balanced',type=str,choices=['True', 'False'],default='False', help='Enable balanced sampling for the replay buffer (True/False)')
+parser.add_argument('--dataset', type=str, default='CICIDS2017', help='Dataset name')
 # Atack on buffer
 attack_group = parser.add_mutually_exclusive_group()
-attack_group.add_argument('--lf', action='store_true', help='Enable Label Flipping attack')
-attack_group.add_argument('--mp', action='store_true', help='Enable Model Poisoning attack')
-parser.add_argument('--poison_rate', type=int, default=100, help='Percentage of poisoned data to use in the buffer (0-100)')
+attack_group.add_argument('--lf', action='store_true', default=False, help='Enable Label Flipping attack')
+attack_group.add_argument('--mp', action='store_true', default=False, help='Enable Model Poisoning attack')
+parser.add_argument('--poison_rate', type=int, default=0, help='Percentage of poisoned data to use in the buffer (0-100)')
 parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
+parser.add_argument('--learning_rate', type=float, help='Override learning rate from config')
 parser.add_argument('--oracle', action='store_true', default=False, help='Enable oracle training for intransigence calculation')
 
 args = parser.parse_args()
@@ -38,14 +44,16 @@ memory_percentage = args.mem if args.er else 0
 scenario = args.scenario
 poisoning_lf = args.lf
 poisoning_mp = args.mp
+balanced = 'True' if args.balanced else 'False'
+dataset_name = args.dataset
 
-seed = random.randint(1, 1000)
+seed = args.seed if args.seed else random.randint(1, 1000)
 
-# 2. IMPORTANT: Print or log the seed!
+
 print(f"Running experiment with seed: {seed}")
 
 # Set seed for reproducibility
-#seed = args.seed
+
 random.seed(seed)
 np.random.seed(seed)
 torch.manual_seed(seed)
@@ -57,22 +65,26 @@ print(f"Memory percentage: {memory_percentage}%")
 print(f"Scenario: {scenario}")
 print(f"Label flipping: {poisoning_lf}")
 print(f"Model poisoning: {poisoning_mp}")
-print(f"Scenario description: {'Benign class only in first experience' if scenario == 1 else 'Benign class split across all experiences'}")
-
+print(f"Scenario description: {'Class Incremental Scenario' if scenario == 1 else 'Class-Instance Incremental Scenario'}")
+print(f"Dataset name: {dataset_name}")
 
 print(f"PyTorch version: {torch.__version__}")
 print(f"CUDA available: {torch.cuda.is_available()}")
 print(f"CUDA version: {torch.version.cuda}")
 #sys.exit()
 
-# --- load config and arrays ONCE ---
-with open('config.yaml', 'r') as f:
+# --- load config ---
+with open('configs/config.yaml', 'r') as f:
     config = yaml.safe_load(f)
 
+if args.learning_rate:
+    config['learning_rate'] = args.learning_rate
 
-dataset_name = "CICIDS2017"
+
 cat_idx_file = f"dataset/{dataset_name}/catfeaturelist.npy"
-iat_idx_file = f"dataset/{dataset_name}/iatfeaturelist.npy"
+
+if poisoning_mp:
+    iat_idx_file = f"dataset/{dataset_name}/iatfeaturelist.npy"
 
 cat_global = np.load(cat_idx_file).tolist()
 
@@ -89,11 +101,14 @@ scenario = build_class_incremental_scenario(
     train_np, val_np, test_np,
     all_classes=all_classes,
     categorical_indices_file=cat_idx_file,
-    n_experiences=4,                 
+    n_experiences=num_class//2,                 
     class_order=list(range(num_class)),
     scenario=scenario
 )
+#print(num_class//2)
 
+#import sys
+#sys.exit()
 # --- loop over experiences with your normal PyTorch workflow ---
 
 batch_size = config['batch_size']
@@ -114,22 +129,20 @@ def create_dataloader(dataset, shuffle, replay_buffer=None, exp_id=None):
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=16,
                       pin_memory=True, persistent_workers=True)
 
-# --- Replay Buffer Components (for ER) ---
-if strategy == 'er':
-    replay_buffer = []
-    val_replay_buffer = []
 
 
-
+# Load model configuration from config.yaml
+model_config = config['model']
 
 # init model for the first exp
 first_exp = scenario[0]
 model = TabTransformer(
     categories = first_exp.train_ds.vocab_sizes,
     num_continuous = first_exp.train_ds.num_continuous_features,
-    dim = 32, depth = 6, heads = 10,
-    attn_dropout = 0.1, ff_dropout = 0.1,
-    dim_out = 2,              # Initial head
+    dim = model_config["dim"], depth = model_config["depth"], heads = model_config["heads"], # best 10,
+    attn_dropout = model_config["attn_dropout"], ff_dropout = model_config["ff_dropout"],
+    dim_out = model_config["dim_out"],     # Initial head
+    mlp_act = nn.GELU()
 ).to(device)
 
 criterion = nn.CrossEntropyLoss()     
@@ -242,7 +255,7 @@ def compute_joint_oracle_metrics(scenario, all_classes, device, config):
         model_o = TabTransformer(
             categories=base_vocab,
             num_continuous=num_cont,
-            dim=32, depth=6, heads=8,
+            dim=64, depth=6, heads=8,
             attn_dropout=0.1, ff_dropout=0.1,
             dim_out=dim_out
         ).to(device)
@@ -264,7 +277,7 @@ def compute_joint_oracle_metrics(scenario, all_classes, device, config):
         train_loader_o = create_dataloader(combined_train_ds, shuffle=True)
         val_loader_o   = create_dataloader(combined_val_ds,   shuffle=False)
 
-        best_state_o = train_model(model_o, train_loader_o, val_loader_o, device, criterion_o, optimizer_o, scheduler_o, config['epochs'], scenario[j], oracle=True)
+        best_state_o = train_model(model_o, train_loader_o, val_loader_o, device, criterion_o, optimizer_o, scheduler_o, config['epochs'], scenario[j], oracle=True, dataset_name=dataset_name)
         model_o.load_state_dict(best_state_o)
 
         # Evaluate on concatenated test sets from exps 0..j
@@ -309,17 +322,16 @@ else:
 wandb.init(project=project_name, config=dict(
     strategy=strategy,
     memory_percentage=memory_percentage,
-    scenario=scenario,
+    scenario=args.scenario,
     group=memory_percentage,
     lr=config["learning_rate"],
     batch_size=config["batch_size"],
     epochs=config["epochs"],
-    dataset=dataset_name
+    dataset=dataset_name, **model_config,
+    seed=seed
 ), mode ="online")
 
-wandb.log({
-    "seed": seed
-}, commit=True)
+
 
 seen_classes_set = set()
 num_exps = len(scenario)      
@@ -334,6 +346,14 @@ best_f1_so_far  = np.full(num_exps, 0, dtype=np.float32)
 # Use default WandB step; avoid custom step metrics to prevent step conflicts
 #wandb.define_metric("Training/*",     step_metric="epoch")
 #wandb.watch(model, log='all', log_graph=True)
+
+# --- Replay Buffer Components (for ER) ---
+
+if strategy == 'er':
+    replay_buffer = []
+    val_replay_buffer = []
+
+
 for exp in scenario:
 
     exp_id = exp.exp_id
@@ -346,17 +366,22 @@ for exp in scenario:
         model = adjust_model(model, seen_classes, device)
         #model.mlp.mlp[-1] = model.mlp.mlp[-1].to(device)
         
-
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config["learning_rate"], weight_decay=1e-2)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=3)
-
+    #optimizer = torch.optim.SGD(model.parameters(), lr=config["learning_rate"], nesterov=True, momentum=0.9)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config["learning_rate"], weight_decay=1e-5)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
+    #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max_epochs, eta_min=1e-6)
+    #scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=1)
     
     # --- Dataloader preparation and concatenate with replay buffer (Strategy-dependent) ---
-    train_loader = create_dataloader(exp.train_ds, shuffle=True, replay_buffer=replay_buffer, exp_id=exp_id)
-    val_loader = create_dataloader(exp.val_ds, shuffle=False, replay_buffer=val_replay_buffer, exp_id=exp_id)
 
+    if strategy == 'er':    
+        train_loader = create_dataloader(exp.train_ds, shuffle=True, replay_buffer=replay_buffer, exp_id=exp_id)
+        val_loader = create_dataloader(exp.val_ds, shuffle=False, replay_buffer=val_replay_buffer, exp_id=exp_id)
+    else:
+        train_loader = create_dataloader(exp.train_ds, shuffle=True, exp_id=exp_id)
+        val_loader = create_dataloader(exp.val_ds, shuffle=False, exp_id=exp_id)
 
-    best_state = train_model(model, train_loader, val_loader, device, criterion, optimizer, scheduler, max_epochs, exp)
+    best_state = train_model(model, train_loader, val_loader, device, criterion, optimizer, scheduler, max_epochs, exp, dataset_name=dataset_name)
     #sys.exit()
     model.load_state_dict(best_state)
 
@@ -367,18 +392,18 @@ for exp in scenario:
         
         # 1. Group all available samples by class from all seen experiences
         seen_class_ids = sorted(list(seen_classes_set))
-        replay_buffer = build_replay_buffer(scenario[:exp_id+1], seen_class_ids, memory_percentage, seed)
+        replay_buffer = build_replay_buffer(scenario[:exp_id+1], seen_class_ids, memory_percentage, seed, balanced=balanced)
 
 
         # Apply in-memory label flipping on the built replay buffer
         if poisoning_lf and replay_buffer:
-            from attack import label_flip
+            from src.strategies.attack import label_flip
             pre_size = len(replay_buffer)
             replay_buffer = label_flip(replay_buffer, seed, args.poison_rate)
             print(f"Applied label flipping to {int(pre_size * (args.poison_rate/100.0))} samples (rate={args.poison_rate}%).")
 
         elif poisoning_mp and replay_buffer:
-            from attack import model_poisoning
+            from src.strategies.attack import model_poisoning
             pre_size = len(replay_buffer)
             replay_buffer = model_poisoning(
                 replay_buffer,
@@ -393,7 +418,7 @@ for exp in scenario:
 
         # 3. Populate validation replay buffer
         print(f"\nRebuilding validation replay buffer...")
-        val_replay_buffer = build_replay_buffer(scenario[:exp_id+1], seen_class_ids, memory_percentage, seed, use_validation_set=True)
+        val_replay_buffer = build_replay_buffer(scenario[:exp_id+1], seen_class_ids, memory_percentage, seed, use_validation_set=True, balanced=balanced)
 
         print_buffer_distribution(val_replay_buffer, "validation")
 
@@ -489,12 +514,29 @@ for exp in scenario:
     overall_accuracy_matrix[exp_id] = overall_acc
     overall_f1_matrix[exp_id] = overall_macro_f1
 
+    # Create a contiguous local mapping (0..N-1) for the confusion matrix
+    # This avoids issues with sparse indices or string matching in W&B
+    local_map = {global_id: local_idx for local_idx, global_id in enumerate(seen_classes_list)}
+    
+    # Map predictions to local 0..N-1 indices
+    y_true_local = [local_map[int(i)] for i in y_true_all]
+    y_pred_local = [local_map[int(i)] for i in y_pred_all]
+    
+    # Disable wandb display names alphabetically for UNSWNB15
+    class_names_display = [all_classes[c] for c in seen_classes_list]
+    
+    if dataset_name == "UNSWNB15":
+        class_names_display = [f"{c:02d}_{all_classes[c]}" for c in seen_classes_list]
+    else:
+        class_names_display = [all_classes[c] for c in seen_classes_list]
+
+    print("Debug: all_classes[c] for c in seen_classes_list:", class_names_display)
     wandb.log({
         f"overall/acc": overall_acc,
         f"overall/macro_f1": overall_macro_f1,
         f"overall/{exp_id}/conf_mat": wandb.plot.confusion_matrix(
-            y_true=y_true_all, preds=y_pred_all,
-            class_names=[all_classes[c] for c in seen_classes_list]
+            y_true=y_true_local, preds=y_pred_local,
+            class_names=class_names_display
         )
     }, commit=True)
     

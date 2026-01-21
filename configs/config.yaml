@@ -1,7 +1,7 @@
 # --- Base Settings ---
-batch_size: 256
-epochs: 100
-learning_rate: 0.0001
+batch_size: 128  # 256 best
+epochs: 1
+learning_rate: 0.001 # 0.0001 best for static lr
 
 datasets:
     CICIDS2017:
@@ -69,4 +69,11 @@ datasets:
             "miraiudpplain"
             ]
 
-      
+# --- Model Configuration ---
+model:
+    dim: 32              # Embedding dimension
+    depth: 6             # Number of transformer layers
+    heads: 10            # Number of attention heads
+    attn_dropout: 0.1    # Attention dropout rate
+    ff_dropout: 0.1      # Feed-forward dropout rate
+    dim_out: 2           # Initial output classes (auto-expanded)

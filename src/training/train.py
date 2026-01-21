@@ -1,7 +1,5 @@
 import torch
 from tqdm.auto import tqdm
-import time
-from datetime import timedelta
 import wandb
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 #from torch import amp
@@ -9,18 +7,18 @@ import copy
 
 
 
-def train_model(model, train_loader, val_loader, device, criterion, optimizer, scheduler, num_epoch, exp, oracle=False):
+def train_model(model, train_loader, val_loader, device, criterion, optimizer, scheduler, num_epoch, exp, oracle=False, dataset_name='CICIDS2017'):
     
     best_val = float('inf')
     no_improve = 0
-    patience = 5
+    patience = 10
     if not oracle:
-        model_path = f"model/CL_CICIDS2017_Exp_{exp.exp_id}.pth"
+        model_path = f"model/CL_{dataset_name}_Exp_{exp.exp_id}.pth"
         wandb.define_metric(step_metric = "Epoch", name = f"Training/exp_{exp.exp_id}/train_loss")
         wandb.define_metric(step_metric = "Epoch", name = f"Training/exp_{exp.exp_id}/val_loss")
         wandb.define_metric(step_metric = "Epoch", name = f"Training/exp_{exp.exp_id}/lr")
     else:
-        model_path = f"model/CL_CICIDS2017_oracle_{exp.exp_id}.pth"
+        model_path = f"model/CL_{dataset_name}_oracle_{exp.exp_id}.pth"
         wandb.define_metric(step_metric = "Epoch", name = f"Training/oracle_{exp.exp_id}/train_loss")
         wandb.define_metric(step_metric = "Epoch", name = f"Training/oracle_{exp.exp_id}/val_loss")
         wandb.define_metric(step_metric = "Epoch", name = f"Training/oracle_{exp.exp_id}/lr")
@@ -43,8 +41,8 @@ def train_model(model, train_loader, val_loader, device, criterion, optimizer, s
         train_loss = tot / max(1, n)
 
         val_loss = evaluate_model(model, val_loader, device, criterion)
-        scheduler.step(val_loss)
-
+        #scheduler.step() # CosineAnnealingLR
+        scheduler.step(val_loss) # ReduceLROnPlateau
         print(f"[Exp {exp.exp_id}] Epoch {epoch}: train_loss={train_loss:.6f}  val_loss={val_loss:.6f}")
 
         if not oracle:

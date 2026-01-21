@@ -13,7 +13,7 @@ class ReplayDataset(Dataset):
     def __getitem__(self, idx):
         return self.buffer[idx]
 
-def build_replay_buffer(experiences, seen_class_ids, memory_percentage, seed, min_samples_per_class=5, use_validation_set=False):
+def build_replay_buffer(experiences, seen_class_ids, memory_percentage, seed, min_samples_per_class=5, use_validation_set=False, balanced=False):
     """
     Builds a replay buffer from a list of experiences.
     
@@ -42,25 +42,36 @@ def build_replay_buffer(experiences, seen_class_ids, memory_percentage, seed, mi
                     samples_by_class[class_id].append(source_ds[idx])
 
     new_buffer = []
-    for class_id in seen_class_ids:
-        class_samples = samples_by_class[class_id]
-        if not class_samples:
-            continue
-        
-        #current_memory_percentage = 5 if class_id == 0 else memory_percentage
-        current_memory_percentage = memory_percentage
+    rng = random.Random(seed)
 
-        num_total_samples = len(class_samples)
-        percentage_target = int(num_total_samples * (current_memory_percentage / 100.0))
-        target_samples = max(min_samples_per_class, percentage_target)
-        quota = min(target_samples, num_total_samples)
+    if balanced:
+        # Balanced sampling based on the number of samples per class
+        total_samples = sum(len(v) for v in samples_by_class.values())
+        total_budget = int(total_samples * (memory_percentage / 100.0))
+        samples_per_class = max(min_samples_per_class, total_budget // len(seen_class_ids))
         
-        # Use a local Random instance with the provided seed for deterministic sampling
-        rng = random.Random(seed)
-        selected_samples = rng.sample(class_samples, quota)
-        new_buffer.extend(selected_samples)
+        for class_id in seen_class_ids:
+            class_samples = samples_by_class[class_id]
+            if not class_samples:
+                continue
+            quota = min(samples_per_class, len(class_samples))
+            selected_samples = rng.sample(class_samples, quota)
+            new_buffer.extend(selected_samples)
+    else:
+        # Sampling bases on percentage of total samples
+        for class_id in seen_class_ids:
+            class_samples = samples_by_class[class_id]
+            if not class_samples:
+                continue
+            num_total_samples = len(class_samples)
+            percentage_target = int(num_total_samples * (memory_percentage / 100.0))
+            target_samples = max(min_samples_per_class, percentage_target)
+            quota = min(target_samples, num_total_samples)
+            selected_samples = rng.sample(class_samples, quota)
+            new_buffer.extend(selected_samples)
         
-    return new_buffer
+    return new_buffer    
+    
 
 def print_buffer_distribution(buffer, buffer_name):
     """

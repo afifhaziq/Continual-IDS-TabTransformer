@@ -1,0 +1,25 @@
+program: main.py
+method: grid
+project: continual-CI-Scenario_2
+metric:
+  name: overall/macro_f1
+  goal: maximize
+parameters:
+  learning_rate:
+    values: [0.0001, 0.0005, 0.001]
+  balanced:
+    values: ["True", "False"]
+command:
+  - uv
+  - run
+  - ${program}
+  - "--scenario"  
+  - "2"
+  - "--er"
+  - "--dataset"
+  - "UNSWNB15"
+  - ${args}
+
+  # Run this
+  # wandb sweep sweep.yaml
+  # wandb agent <SWEEP_ID>

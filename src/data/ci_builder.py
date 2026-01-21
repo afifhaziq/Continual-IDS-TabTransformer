@@ -1,11 +1,9 @@
 
 from dataclasses import dataclass
 import numpy as np
-import torch
 from torch.utils.data import DataLoader
 from typing import List, Sequence, Optional
-import sys
-from preprocess import TabularDataset  
+from .preprocess import TabularDataset  
 
 @dataclass
 class CIExperience:
@@ -229,12 +227,6 @@ def build_class_incremental_scenario(
 
     # Handle scenario 2 with benign splitting across train/val/test
     if scenario == 2:
-        # Combine all data to determine consistent benign splitting across train/val/test
-        all_data = np.vstack([train_np, val_np, test_np])
-        train_size = len(train_np)
-        val_size = len(val_np)
-        test_size = len(test_np)
-
         for exp_id, cls_ids in enumerate(class_groups):
             cls_names = [all_classes[c] for c in cls_ids]
 

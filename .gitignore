@@ -4,9 +4,10 @@
 
 # Python cache
 __pycache__/
+.ruff_cache/
 
 # Virtual environment
-.venv/
+.venv/ 
 
 # Data and models
 dataset/
@@ -14,12 +15,16 @@ preprocess_csv/
 model/
 *.npy
 *.pth
+wandb/
 
-# Unused files
-./.~forgetoriginal.py
+# Results and outputs
+results/
+tb_data/
+
+# Unused files (legacy)
+experimental/
 continual.py
 forget.py
 forgetv1.py
-main.py
 preprocessnb.ipynb
 test.np

@@ -1,6 +1,5 @@
 import random
 import torch
-import numpy as np
 
 
 def label_flip(buffer, seed, poison_rate):
