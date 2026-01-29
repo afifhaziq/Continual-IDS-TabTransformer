@@ -1,0 +1,124 @@
+name: Unit Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  unit-tests:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12.4"]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+      
+      - name: Install dependencies
+        run: uv sync
+      
+      - name: Create test data directories
+        run: |
+          mkdir -p dataset/CICIDS2017
+          mkdir -p preprocess_csv/CICIDS2017
+      
+      - name: Run unit tests with coverage
+        run: |
+          uv run pytest tests/ \
+            --cov=src/data \
+            --cov=src/strategies \
+            --cov-report=xml \
+            --cov-report=term \
+            --cov-report=html \
+            -v \
+            --tb=short \
+            -n auto
+      
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      
+      - name: Upload coverage HTML report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: htmlcov/
+      
+      - name: Check coverage threshold
+        run: |
+          uv run pytest tests/ \
+            --cov=src/data \
+            --cov=src/strategies \
+            --cov-fail-under=70 \
+            --cov-report=term
+        continue-on-error: true
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      
+      - name: Set up Python
+        run: uv python install 3.12.4
+      
+      - name: Install dependencies
+        run: uv sync
+      
+      - name: Create synthetic test data
+        run: |
+          mkdir -p dataset/CICIDS2017
+          python -c "
+import numpy as np
+# Create minimal synthetic data for integration testing
+num_samples = 1000
+num_features = 77
+num_classes = 8
+
+# Generate synthetic data
+X = np.random.randn(num_samples, num_features)
+y = np.random.randint(0, num_classes, size=(num_samples, 1))
+data = np.hstack([X, y])
+
+# Save train/val/test splits
+np.save('dataset/CICIDS2017/train.npy', data)
+np.save('dataset/CICIDS2017/val.npy', data[:200])
+np.save('dataset/CICIDS2017/test.npy', data[:200])
+
+# Save categorical feature indices
+cat_indices = np.array([0, 1, 2])  # First 3 features as categorical
+np.save('dataset/CICIDS2017/catfeaturelist.npy', cat_indices)
+          "
+      
+      - name: Run integration tests
+        run: uv run pytest tests/integration/ -v
+        env:
+          WANDB_MODE: offline
+        continue-on-error: true

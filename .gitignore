@@ -1,33 +1,74 @@
-# Jupyter
-*.ipynb
-*.ipynb_checkpoints
-
-# Python cache
+# Python
 __pycache__/
-.ruff_cache/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Virtual environment
-.venv/ 
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
 
-# Data and models
-dataset/
-model/
+# PyTorch
 *.pth
+*.pt
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+coverage.xml
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data
+dataset/
+preprocess_csv/
+*.npy
+*.csv
+
+# Weights & Biases
 wandb/
 
-# Preprocessing data files (but keep directory structure)
-preprocess_csv/**/*.csv
-preprocess_csv/**/*.npy
-preprocess_csv/**/*.ipynb
-
-# Results and outputs
-results/
+# Logs
+*.log
 tb_data/
 
-# Unused files (legacy)
+# Model checkpoints
+model/
+checkpoints/
+
+# Experimental
 experimental/
-continual.py
-forget.py
-forgetv1.py
-preprocessnb.ipynb
-test.np

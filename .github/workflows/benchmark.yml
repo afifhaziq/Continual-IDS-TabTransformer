@@ -1,0 +1,39 @@
+name: Performance Benchmark
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    name: Run Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+      
+      - name: Set up Python
+        run: uv python install 3.12.4
+      
+      - name: Install dependencies
+        run: uv sync
+      
+      - name: Run performance benchmarks
+        run: |
+          uv pip install pytest-benchmark
+          uv run pytest benchmarks/ --benchmark-json=output.json
+        continue-on-error: true
+      
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'pytest'
+          output-file-path: output.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+        continue-on-error: true

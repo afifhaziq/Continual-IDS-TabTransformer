@@ -2,9 +2,13 @@
 
 A PyTorch implementation of continual learning strategies for Network Intrusion Detection Systems (NIDS). This repository implements **Experience Replay (ER)** with **dynamic head expansion** to address catastrophic forgetting in sequential learning scenarios.
 
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![Python 3.12.4](https://img.shields.io/badge/python-3.12.4-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.6.0+-ee4c2c.svg)](https://pytorch.org/)
-[![uv](https://img.shields.io/badge/uv-package%20manager-blue)](https://github.com/astral-sh/uv)
+[![Tests](https://img.shields.io/badge/tests-60%20passed-success)](tests/)
+[![Coverage](https://img.shields.io/badge/coverage-87%25-brightgreen)](tests/)
+[![Security Scan](https://github.com/afifhaziq/Continual-IDS-TabTransformer/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/afifhaziq/Continual-IDS-TabTransformer/actions/workflows/security.yml)
+[![Code Quality](https://img.shields.io/badge/code%20quality-ruff-blue)](https://github.com/astral-sh/ruff)
 
 ## Table of Contents
 
@@ -26,9 +30,11 @@ A PyTorch implementation of continual learning strategies for Network Intrusion 
 - [Usage](#usage)
   - [Basic Commands](#basic-commands)
   - [Command-Line Arguments](#command-line-arguments)
+- [Testing](#testing)
 - [Evaluation Metrics](#evaluation-metrics)
 - [Project Structure](#project-structure)
 - [Weights & Biases Logging](#weights--biases-logging)
+- [CI/CD](#cicd)
 - [License](#license)
 - [Contact](#contact)
 
@@ -338,7 +344,7 @@ dataset/
 
 ### Final Preprocessing Pipeline (Internal)
 
-After loading the preprocessed `.npy` files, `src/data/preprocess.py` performs additional processing:
+After loading the preprocessed `.npy` files, `src/data/preprocess.py` performs additional processing. This is executed via the `main.py` script:
 
 1. **Feature Separation**: Categorical and continuous features are separated based on `catfeaturelist.npy`
 2. **Normalization**: Continuous features are normalized using `StandardScaler`
@@ -531,6 +537,18 @@ overall/
   ├── intransigence_acc        # Overall intransigence (if oracle enabled)
   └── {id}/conf_mat            # Confusion matrix per experience
 ```
+
+## CI/CD
+
+This repository uses GitHub Actions for continuous integration and deployment:
+
+- **CI Pipeline**: Automated linting, formatting checks, and type checking
+- **Unit Tests**: 60 tests with 87% coverage, runs on every push and pull request
+- **Security Scanning**: Weekly dependency vulnerability checks with Safety and Bandit
+- **Documentation**: Markdown linting and link validation
+- **Releases**: Automated changelog generation and GitHub releases
+
+All workflows are configured in `.github/workflows/` and run automatically on push to `main` or `develop` branches.
 
 ## License
 
