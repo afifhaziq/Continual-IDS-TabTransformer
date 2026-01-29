@@ -3,6 +3,7 @@ from torch.utils.data import Dataset
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 
+
 class AvalancheTabularDataset(Dataset):
     def __init__(self, base_dataset):
         self.base = base_dataset
@@ -14,8 +15,18 @@ class AvalancheTabularDataset(Dataset):
         x_categ, x_cont, label = self.base[idx]
         return (x_categ, x_cont), label
 
+
 class TabularDataset(Dataset):
-    def __init__(self, data, categorical_indices_file, task_classes, all_classes, fit=True, scaler=None, max_features=None):
+    def __init__(
+        self,
+        data,
+        categorical_indices_file,
+        task_classes,
+        all_classes,
+        fit=True,
+        scaler=None,
+        max_features=None,
+    ):
         """
         Args:
             data (numpy.ndarray): Full feature matrix (NumSamples, NumFeatures+1 [last col = label])
@@ -25,20 +36,24 @@ class TabularDataset(Dataset):
         """
         self.features = data[:, :-1]
         self.labels = data[:, -1]
-        #print("This is tabular object")
-        #if remap:
-            #self.targets = self.labels.copy()
-            # Build mapping from task-specific indices -> global indices
-            #self.label_mapping = {i: all_classes.index(c) for i, c in enumerate(task_classes)}
+        # print("This is tabular object")
+        # if remap:
+        # self.targets = self.labels.copy()
+        # Build mapping from task-specific indices -> global indices
+        # self.label_mapping = {i: all_classes.index(c) for i, c in enumerate(task_classes)}
 
-            # Remap labels to global indices
-            #self.targets = np.array([self.label_mapping[int(l)] for l in self.labels], dtype=np.int64)
-        
+        # Remap labels to global indices
+        # self.targets = np.array([self.label_mapping[int(l)] for l in self.labels], dtype=np.int64)
+
         # Load categorical indices
         self.categorical_indices = np.load(categorical_indices_file).tolist()
-        #print(self.categorical_indices)
+        # print(self.categorical_indices)
         # Continuous indices = all except categorical
-        self.cont_indices = [i for i in range(self.features.shape[1]) if i not in self.categorical_indices]
+        self.cont_indices = [
+            i
+            for i in range(self.features.shape[1])
+            if i not in self.categorical_indices
+        ]
 
         # Pad if needed
         if max_features:
@@ -50,11 +65,11 @@ class TabularDataset(Dataset):
 
         # Calculate vocab sizes for categorical columns
         self.vocab_sizes = self._calculate_vocab_sizes()
-        #print(self.vocab_sizes)
+        # print(self.vocab_sizes)
 
     def __len__(self):
         return len(self.labels)
-    
+
     def __getitem__(self, idx):
         all_features = self.features[idx]
         label = self.labels[idx]
@@ -70,9 +85,13 @@ class TabularDataset(Dataset):
 
         if fit:
             self.scaler = StandardScaler()
-            cont_features = self.scaler.fit_transform(self.features[:, self.cont_indices].astype(float))
+            cont_features = self.scaler.fit_transform(
+                self.features[:, self.cont_indices].astype(float)
+            )
         else:
-            cont_features = self.scaler.transform(self.features[:, self.cont_indices].astype(float))
+            cont_features = self.scaler.transform(
+                self.features[:, self.cont_indices].astype(float)
+            )
 
         self.features[:, self.cont_indices] = cont_features
         return self.features
@@ -80,13 +99,13 @@ class TabularDataset(Dataset):
     def _calculate_vocab_sizes(self):
         vocab_list = []
         for idx in self.categorical_indices:
-            #if idx == 0:
-                #vocab_size = 65536
-            #else:
+            # if idx == 0:
+            # vocab_size = 65536
+            # else:
             col_data = self.features[:, idx]
             vocab_size = int(len(np.unique(col_data)))
             vocab_list.append(vocab_size)
-            #print(vocab_list)
+            # print(vocab_list)
         return vocab_list
 
     def pad_features(self, max_features):
@@ -102,11 +121,11 @@ class TabularDataset(Dataset):
             new_features = self.features
 
         return new_features
-        
+
     @property
     def num_categorical_features(self):
         return len(self.categorical_indices)
-    
+
     @property
     def num_continuous_features(self):
         return len(self.cont_indices)
@@ -114,11 +133,3 @@ class TabularDataset(Dataset):
     @property
     def total_features(self):
         return len(self.cont_indices) + len(self.categorical_indices)
-
-
-
-
-
-    
-
-

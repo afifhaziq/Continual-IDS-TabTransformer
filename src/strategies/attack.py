@@ -41,11 +41,12 @@ def label_flip(buffer, seed, poison_rate):
         if not candidate_labels:
             continue
         new_label = rng.choice(candidate_labels)
-        new_label_tensor = torch.tensor(new_label, dtype=label_tensor.dtype, device=label_tensor.device)
+        new_label_tensor = torch.tensor(
+            new_label, dtype=label_tensor.dtype, device=label_tensor.device
+        )
         buffer[idx] = (features, new_label_tensor)
 
     return buffer
-
 
 
 def model_poisoning(
@@ -88,7 +89,9 @@ def model_poisoning(
     rng = random.Random(seed)
 
     # Consider only benign samples (label==0)
-    benign_indices = [i for i, sample in enumerate(buffer) if int(sample[1].item()) == 0]
+    benign_indices = [
+        i for i, sample in enumerate(buffer) if int(sample[1].item()) == 0
+    ]
     if not benign_indices:
         return buffer
 
@@ -101,7 +104,9 @@ def model_poisoning(
 
     # Use provided indices (required)
     if iat_indices is None or cat_indices is None:
-        raise ValueError("model_poisoning requires preloaded iat_indices and cat_indices")
+        raise ValueError(
+            "model_poisoning requires preloaded iat_indices and cat_indices"
+        )
     iat_global = list(iat_indices)
     cat_global = set(cat_indices)
 
@@ -121,7 +126,9 @@ def model_poisoning(
         device, dtype = x_cont.device, x_cont.dtype
         pos_tensor = torch.tensor(iat_pos, device=device, dtype=torch.long)
         # Per-feature random values in [vmin, vmax]
-        values = (torch.rand(len(iat_pos), device=device, dtype=dtype) * (vmax - vmin)) + vmin
+        values = (
+            torch.rand(len(iat_pos), device=device, dtype=dtype) * (vmax - vmin)
+        ) + vmin
         # In-place write
         x_cont.index_copy_(0, pos_tensor, values)
         buffer[idx] = ((x_categ, x_cont), y)
@@ -147,9 +154,10 @@ def choose_backdoor_target_from_buffer(buffer, seed, benign_label: int = 0):
     int | None
         Chosen non-benign class label, or None if none available.
     """
-    non_benign = sorted({int(lbl.item()) for (_, lbl) in buffer if int(lbl.item()) != benign_label})
+    non_benign = sorted(
+        {int(lbl.item()) for (_, lbl) in buffer if int(lbl.item()) != benign_label}
+    )
     if not non_benign:
         return None
     rng = random.Random(seed)
     return rng.choice(non_benign)
-

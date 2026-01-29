@@ -95,7 +95,7 @@ jobs:
       - name: Create synthetic test data
         run: |
           mkdir -p dataset/CICIDS2017
-          python -c "import numpy as np; num_samples = 1000; num_features = 77; num_classes = 8; X = np.random.randn(num_samples, num_features); y = np.random.randint(0, num_classes, size=(num_samples, 1)); data = np.hstack([X, y]); np.save('dataset/CICIDS2017/train.npy', data); np.save('dataset/CICIDS2017/val.npy', data[:200]); np.save('dataset/CICIDS2017/test.npy', data[:200]); cat_indices = np.array([0, 1, 2]); np.save('dataset/CICIDS2017/catfeaturelist.npy', cat_indices)"
+          uv run python -c "import numpy as np; num_samples = 1000; num_features = 77; num_classes = 8; X = np.random.randn(num_samples, num_features); y = np.random.randint(0, num_classes, size=(num_samples, 1)); data = np.hstack([X, y]); np.save('dataset/CICIDS2017/train.npy', data); np.save('dataset/CICIDS2017/val.npy', data[:200]); np.save('dataset/CICIDS2017/test.npy', data[:200]); cat_indices = np.array([0, 1, 2]); np.save('dataset/CICIDS2017/catfeaturelist.npy', cat_indices)"
       
       - name: Run integration tests
         run: uv run pytest tests/integration/ -v

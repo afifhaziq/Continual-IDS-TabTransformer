@@ -5,14 +5,14 @@ from .ci_builder import (
     CIExperience,
     CIScenario,
     build_class_incremental_scenario,
-    build_dataset_incremental_scenario
+    build_dataset_incremental_scenario,
 )
 
 __all__ = [
-    'TabularDataset',
-    'AvalancheTabularDataset',
-    'CIExperience',
-    'CIScenario',
-    'build_class_incremental_scenario',
-    'build_dataset_incremental_scenario',
+    "TabularDataset",
+    "AvalancheTabularDataset",
+    "CIExperience",
+    "CIScenario",
+    "build_class_incremental_scenario",
+    "build_dataset_incremental_scenario",
 ]
