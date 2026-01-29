@@ -10,7 +10,6 @@ import sys
 import argparse
 import random
 from torch.utils.data import DataLoader
-from tqdm import tqdm
 from tab_transformer_pytorch import TabTransformer
 
 # Local imports
@@ -190,7 +189,6 @@ def adjust_model(model, num_class_new_total, device):
     model.mlp.mlp[-1] = new_head.to(device)
     return model
     
-import sys
 #sys.exit()
 
 def from_report(report_dict):
@@ -417,7 +415,7 @@ for exp in scenario:
         print_buffer_distribution(replay_buffer, "training")
 
         # 3. Populate validation replay buffer
-        print(f"\nRebuilding validation replay buffer...")
+        print("\nRebuilding validation replay buffer...")
         val_replay_buffer = build_replay_buffer(scenario[:exp_id+1], seen_class_ids, memory_percentage, seed, use_validation_set=True, balanced=balanced)
 
         print_buffer_distribution(val_replay_buffer, "validation")
@@ -532,8 +530,8 @@ for exp in scenario:
 
     print("Debug: all_classes[c] for c in seen_classes_list:", class_names_display)
     wandb.log({
-        f"overall/acc": overall_acc,
-        f"overall/macro_f1": overall_macro_f1,
+        "overall/acc": overall_acc,
+        "overall/macro_f1": overall_macro_f1,
         f"overall/{exp_id}/conf_mat": wandb.plot.confusion_matrix(
             y_true=y_true_local, preds=y_pred_local,
             class_names=class_names_display

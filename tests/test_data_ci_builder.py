@@ -1,12 +1,15 @@
 """Unit tests for src/data/ci_builder.py"""
 import pytest
 import numpy as np
+import tempfile
+from pathlib import Path
 
 from src.data.ci_builder import (
     _split_classes_into_experiences,
     _subset_by_classes,
     _get_benign_split_indices,
     _subset_by_classes_with_scenario,
+    build_class_incremental_scenario,
     CIExperience,
     CIScenario,
     remap_labels

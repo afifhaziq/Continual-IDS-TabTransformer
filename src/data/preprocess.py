@@ -2,9 +2,6 @@ import torch
 from torch.utils.data import Dataset
 import numpy as np
 from sklearn.preprocessing import StandardScaler
-from collections import Counter, defaultdict
-from sklearn.model_selection import StratifiedShuffleSplit
-import random
 
 class AvalancheTabularDataset(Dataset):
     def __init__(self, base_dataset):

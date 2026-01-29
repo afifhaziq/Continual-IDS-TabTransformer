@@ -1,7 +1,7 @@
 import torch
 from tqdm.auto import tqdm
 import wandb
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+from sklearn.metrics import classification_report, confusion_matrix
 #from torch import amp
 import copy
 
@@ -37,7 +37,9 @@ def train_model(model, train_loader, val_loader, device, criterion, optimizer, s
             loss.backward()
             optimizer.step()
             
-            bs = y.size(0); tot += loss.item() * bs; n += bs # Find average loss per batch
+            bs = y.size(0)
+            tot += loss.item() * bs
+            n += bs # Find average loss per batch
         train_loss = tot / max(1, n)
 
         val_loss = evaluate_model(model, val_loader, device, criterion)
@@ -87,7 +89,9 @@ def evaluate_model(model, val_loader, device, criterion):
             x_categ, x_cont, y = x_categ.to(device), x_cont.to(device), y.to(device)
             logits = model(x_categ, x_cont)
             loss = criterion(logits, y)
-            bs = y.size(0); tot += loss.item() * bs; n += bs
+            bs = y.size(0)
+            tot += loss.item() * bs
+            n += bs
         val_loss = tot / max(1, n)
 
     return val_loss
@@ -111,7 +115,7 @@ def test_and_report(model, test_loader, device, class_names, task_indices=None):
             all_preds.extend(preds.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
             #print(preds)
-    acc = accuracy_score(all_labels, all_preds)
+    #acc = accuracy_score(all_labels, all_preds)
  
     
   

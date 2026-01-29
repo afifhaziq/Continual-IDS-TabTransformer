@@ -3,12 +3,13 @@
 A PyTorch implementation of continual learning strategies for Network Intrusion Detection Systems (NIDS). This repository implements **Experience Replay (ER)** with **dynamic head expansion** to address catastrophic forgetting in sequential learning scenarios.
 
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Python 3.12.4](https://img.shields.io/badge/python-3.12.4-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.6.0+-ee4c2c.svg)](https://pytorch.org/)
-[![Tests](https://img.shields.io/badge/tests-60%20passed-success)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-87%25-brightgreen)](tests/)
+[![CI](https://github.com/afifhaziq/Continual-IDS-TabTransformer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/afifhaziq/Continual-IDS-TabTransformer/actions/workflows/ci.yml)
+[![Unit Tests](https://github.com/afifhaziq/Continual-IDS-TabTransformer/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/afifhaziq/Continual-IDS-TabTransformer/actions/workflows/test.yml)
 [![Security Scan](https://github.com/afifhaziq/Continual-IDS-TabTransformer/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/afifhaziq/Continual-IDS-TabTransformer/actions/workflows/security.yml)
-[![Code Quality](https://img.shields.io/badge/code%20quality-ruff-blue)](https://github.com/astral-sh/ruff)
+
 
 ## Table of Contents
 
